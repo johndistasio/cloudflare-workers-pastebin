@@ -1,10 +1,16 @@
-name = "paste-api"
+name = "paste"
 main = "src/index.ts"
 compatibility_date = "2023-10-30"
 
-[[r2_buckets]]
-binding = "CONTENT"
-bucket_name = "paste-content"
+# The "default" environment is treated as production, this doesn't seem to be changable.
+
+# preview_bucket_name is used as the dev bucket with wrangler dev --remote
+
+# This particular syntax for defining objects seems to be necessary when using envs.
+
+r2_buckets = [
+  { binding = "CONTENT", bucket_name = "paste-content", preview_bucket_name = "paste-content-dev" }
+]
 
 # Variable bindings. These are arbitrary, plaintext strings (similar to environment variables)
 # Note: Use secrets to store sensitive data.
