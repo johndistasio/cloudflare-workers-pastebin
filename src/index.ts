@@ -27,9 +27,64 @@ export interface Env {
   // MY_QUEUE: Queue;
 }
 
-const pasteItemHTML = `<!DOCTYPE html>
-<body>
-  <center><h1>Paste Item</h1></center>
+const htmlHeader = `<!DOCTYPE html>
+<head>
+  <style>
+    .header, .content {
+      margin: auto;
+      width: 75%;
+      display: flex;
+      justify-content: center;
+    }
+    .form {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      flex-direction: column;
+    }
+    .paste {
+      margin-left: 10%;
+      margin-right: 10%;
+      margin-bottom: 10px;
+      width: 80%;
+      height: 60vh;
+      resize: none;
+    }
+    .button {
+      margin-left: 10%;
+      margin-right: auto;
+      width: 100px;
+    }
+  </style>
+</head>
+`;
+
+const pasteItemDocument =
+  htmlHeader +
+  `<body>
+  <div class="header">
+    <h1>Paste Item</h1>
+  </div>
+  <div class="content">
+    <form class="form" action="/" method="post">
+      <textarea class="paste" mthod="post" name="content" required="true" placeholder="Paste something..."></textarea>
+      <button class="button" type="submit">Paste</button>
+    </form>
+  </div>
+</body>
+`;
+
+const itemCreatedTemplate = (itemURL: string) =>
+  htmlHeader +
+  `<body>
+  <div class="header">
+    <h1>Pasted Item</h1>
+  </div>
+  <div class="content">
+    <p>
+      <a href="${itemURL}">${itemURL}</a>
+    </p>
+  </div>
 </body>
 `;
 
@@ -83,25 +138,8 @@ export default {
       case 'GET':
         const key = new URL(request.url).pathname.slice(1);
 
-        if (key) {
-          const object = await env.CONTENT.get(key);
-
-          if (!object) {
-            return new Response(missingItemHTML, {
-              headers: {
-                'content-type': 'text/html;charset=UTF-8',
-              },
-              status: 404,
-            });
-          }
-
-          const { readable, writable } = new TransformStream();
-
-          // This is specifically _not_ awaited on so the runtime begins sending the
-          // response back as soon as possible.
-          streamGetItemResponse(object.body, writable);
-
-          return new Response(readable, {
+        if (!key) {
+          return new Response(pasteItemDocument, {
             headers: {
               'content-type': 'text/html;charset=UTF-8',
             },
@@ -109,14 +147,42 @@ export default {
           });
         }
 
-        return new Response(pasteItemHTML, {
+        if (key.toLowerCase() == 'favicon.ico') {
+          return new Response(null, { status: 404 });
+        }
+
+        const newObject = await env.CONTENT.get(key);
+
+        if (!newObject) {
+          return new Response(missingItemHTML, {
+            headers: {
+              'content-type': 'text/html;charset=UTF-8',
+            },
+            status: 404,
+          });
+        }
+
+        const { readable, writable } = new TransformStream();
+
+        // This is specifically _not_ awaited on so the runtime begins sending the
+        // response back as soon as possible.
+        streamGetItemResponse(newObject.body, writable);
+
+        return new Response(readable, {
           headers: {
             'content-type': 'text/html;charset=UTF-8',
           },
           status: 200,
         });
+
       case 'POST':
-        const object = await env.CONTENT.put(crypto.randomUUID(), request.body, {
+        const body = (await request.formData()).get('content');
+
+        if (!body) {
+          return new Response(null, { status: 404 });
+        }
+
+        const object = await env.CONTENT.put(crypto.randomUUID(), body, {
           customMetadata: {
             'cf-connecting-ip': request.headers.get('cf-connecting-ip') || '',
             'cf-ray': request.headers.get('cf-ray') || '',
@@ -125,9 +191,9 @@ export default {
 
         console.log(`created ${object.key}, ${object.size} bytes`);
 
-        return new Response(`{"item":"${object.key}"}`, {
+        return new Response(itemCreatedTemplate(request.url + object.key), {
           headers: {
-            'content-type': 'application/json;charset=UTF-8',
+            'content-type': 'text/html;charset=UTF-8',
           },
           status: 201,
         });
