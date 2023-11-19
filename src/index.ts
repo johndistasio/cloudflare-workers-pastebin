@@ -2,6 +2,7 @@ export interface Env {
   CONTENT: R2Bucket;
 }
 
+// Leading content for all HTML responses.
 const htmlHeader = `<!DOCTYPE html>
 <head>
   <style>
@@ -34,6 +35,24 @@ const htmlHeader = `<!DOCTYPE html>
 </head>
 `;
 
+// Start of streaming response for item reads.
+const getItemPrefaceHTML =
+  htmlHeader +
+  `<body>
+  <div class="header">
+    <h1>Get Item</h1>
+  </div>
+  <div class="content">
+    <pre>`;
+
+// End of streaming response for item reads.
+const getItemTrailingHTML = `
+</pre>
+</div>
+</body>
+`;
+
+// Item upload form.
 const pasteItemDocument =
   htmlHeader +
   `<body>
@@ -49,6 +68,7 @@ const pasteItemDocument =
 </body>
 `;
 
+// Item created response.
 const itemCreatedTemplate = (itemURL: string) =>
   htmlHeader +
   `<body>
@@ -63,22 +83,7 @@ const itemCreatedTemplate = (itemURL: string) =>
 </body>
 `;
 
-const getItemPrefaceHTML =
-  htmlHeader +
-  `<body>
-  <div class="header">
-    <h1>Get Item</h1>
-  </div>
-  <div class="content">
-    <pre>`;
-
-const getItemTrailingHTML = `
-</pre>
-</div>
-</body>
-`;
-
-const missingItemHTML =
+const missingItemDocument =
   htmlHeader +
   `<body>
     <div class="header">
@@ -87,7 +92,7 @@ const missingItemHTML =
   </body>
 `;
 
-const methodNotAllowedHTML =
+const methodNotAllowedDocument =
   htmlHeader +
   `<body>
     <div class="header">
@@ -96,6 +101,9 @@ const methodNotAllowedHTML =
   </body>
 `;
 
+// Writes the "get item" response document to a stream that can be... streamed to the client.
+// A stream is used so we don't have to read large items fully into memory before returning
+// them to clients.
 const streamGetItemResponse = async (readable: ReadableStream, writable: WritableStream) => {
   const encoder = new TextEncoder();
   const reader = readable.getReader();
@@ -124,6 +132,7 @@ export default {
       case 'GET':
         const key = new URL(request.url).pathname.slice(1);
 
+        // Return the upload form if we're being requested without a path.
         if (!key) {
           return new Response(pasteItemDocument, {
             headers: {
@@ -137,10 +146,12 @@ export default {
           return new Response(null, { status: 404 });
         }
 
+        // If we're being requested with a path, try to use that for an item lookup.
+
         const newObject = await env.CONTENT.get(key);
 
         if (!newObject) {
-          return new Response(missingItemHTML, {
+          return new Response(missingItemDocument, {
             headers: {
               'content-type': 'text/html;charset=UTF-8',
             },
@@ -148,10 +159,10 @@ export default {
           });
         }
 
-        const { readable, writable } = new TransformStream();
-
         // This is specifically _not_ awaited on so the runtime begins sending the
         // response back as soon as possible.
+        // Ref: https://developers.cloudflare.com/workers/runtime-apis/streams
+        const { readable, writable } = new TransformStream();
         streamGetItemResponse(newObject.body, writable);
 
         return new Response(readable, {
@@ -168,6 +179,7 @@ export default {
           return new Response(null, { status: 404 });
         }
 
+        // Escape HTML content
         const escapedBody = body
           .replaceAll('&', '&amp;')
           .replaceAll('<', '&lt;')
@@ -191,7 +203,7 @@ export default {
           status: 201,
         });
       default:
-        return new Response(methodNotAllowedHTML, {
+        return new Response(methodNotAllowedDocument, {
           headers: {
             allow: 'GET,POST',
             'content-type': 'text/html;charset=UTF-8',

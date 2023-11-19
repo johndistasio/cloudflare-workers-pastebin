@@ -1,8 +1,10 @@
 {
-  "name": "paste-api",
-  "version": "0.0.0",
+  "name": "paste",
+  "version": "1.0.0",
   "private": true,
+  "license": "MIT",
   "scripts": {
+    "delete": "wrangler delete",
     "deploy": "wrangler deploy",
     "dev": "wrangler dev",
     "start": "wrangler dev"
