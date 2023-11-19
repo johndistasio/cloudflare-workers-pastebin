@@ -1,30 +1,5 @@
-/**
- * Welcome to Cloudflare Workers! This is your first worker.
- *
- * - Run `npm run dev` in your terminal to start a development server
- * - Open a browser tab at http://localhost:8787/ to see your worker in action
- * - Run `npm run deploy` to publish your worker
- *
- * Learn more at https://developers.cloudflare.com/workers/
- */
-
 export interface Env {
   CONTENT: R2Bucket;
-
-  // Example binding to KV. Learn more at https://developers.cloudflare.com/workers/runtime-apis/kv/
-  // MY_KV_NAMESPACE: KVNamespace;
-  //
-  // Example binding to Durable Object. Learn more at https://developers.cloudflare.com/workers/runtime-apis/durable-objects/
-  // MY_DURABLE_OBJECT: DurableObjectNamespace;
-  //
-  // Example binding to R2. Learn more at https://developers.cloudflare.com/workers/runtime-apis/r2/
-  // MY_BUCKET: R2Bucket;
-  //
-  // Example binding to a Service. Learn more at https://developers.cloudflare.com/workers/runtime-apis/service-bindings/
-  // MY_SERVICE: Fetcher;
-  //
-  // Example binding to a Queue. Learn more at https://developers.cloudflare.com/queues/javascript-apis/
-  // MY_QUEUE: Queue;
 }
 
 const htmlHeader = `<!DOCTYPE html>
@@ -88,26 +63,37 @@ const itemCreatedTemplate = (itemURL: string) =>
 </body>
 `;
 
-const getItemPrefaceHTML = `<!DOCTYPE html>
-<body>
-  <center><h1>Get Item</h1></center>
-  <p>
-`;
+const getItemPrefaceHTML =
+  htmlHeader +
+  `<body>
+  <div class="header">
+    <h1>Get Item</h1>
+  </div>
+  <div class="content">
+    <pre>`;
 
-const getItemTrailingHTML = `  </p>
+const getItemTrailingHTML = `
+</pre>
+</div>
 </body>
 `;
 
-const missingItemHTML = `<!DOCTYPE html>
-<body>
-  <center><h1>Missing Item</h1></center>
-</body>
+const missingItemHTML =
+  htmlHeader +
+  `<body>
+    <div class="header">
+      <h1>Missing Item</h1>
+    </div>
+  </body>
 `;
 
-const methodNotAllowedHTML = `<!DOCTYPE html>
-<body>
-  <center><h1>405 Method Not Allowed</h1></center>
-</body>
+const methodNotAllowedHTML =
+  htmlHeader +
+  `<body>
+    <div class="header">
+      <h1>Method Not Allowed</h1>
+    </div>
+  </body>
 `;
 
 const streamGetItemResponse = async (readable: ReadableStream, writable: WritableStream) => {
@@ -182,7 +168,14 @@ export default {
           return new Response(null, { status: 404 });
         }
 
-        const object = await env.CONTENT.put(crypto.randomUUID(), body, {
+        const escapedBody = body
+          .replaceAll('&', '&amp;')
+          .replaceAll('<', '&lt;')
+          .replaceAll('>', '&gt;')
+          .replaceAll('"', '&quot;')
+          .replaceAll("'", '&#39');
+
+        const object = await env.CONTENT.put(crypto.randomUUID(), escapedBody, {
           customMetadata: {
             'cf-connecting-ip': request.headers.get('cf-connecting-ip') || '',
             'cf-ray': request.headers.get('cf-ray') || '',
